@@ -312,7 +312,10 @@
                     }
                 });
 
-                document.getElementById('svgContainer').appendChild(downloadButton);
+                if (!document.getElementById('downloadButton')) {
+                    downloadButton.id = 'downloadButton';
+                    document.getElementById('svgContainer').appendChild(downloadButton);
+                }
             });
 
         loadDepartments();

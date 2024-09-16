@@ -111,6 +111,9 @@ app.post('/api/schedule', (req, res) => {
     validCombinations.forEach((combination, index) => {
         let svg = templateSvg;
 
+        // Çakışmaları bulalım
+        const conflicts = findConflicts(combination);
+
         combination.forEach((section, courseIndex) => {
             section.schedules.forEach(schedule => {
                 const gunler = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
@@ -124,7 +127,11 @@ app.post('/api/schedule', (req, res) => {
                 let y = 420;
 
                 const colors = ['#FFC0CB', '#ADD8E6', '#90EE90', '#FFB6C1', '#FFD700', '#FFA07A', '#20B2AA', '#87CEFA', '#778899', '#B0C4DE'];
-                const color = colors[courseIndex % colors.length];
+
+                // Çakışma olup olmadığını kontrol et
+                const isConflict = conflicts.some(conflict => conflict.schedule === schedule);
+                const color = isConflict ? '#FF0000' : colors[courseIndex % colors.length];
+
                 let lecture = `<rect x="${x + period * genislik}" y="${y + gun * yukseklik}" width="${duration * genislik}" height="${yukseklik}" fill="${color}" stroke-width="2"/>`;
                 lecture += `<text x="${(x + period * genislik) + ((duration * genislik) / 2)}" y="${(y + gun * yukseklik) + 100}" font-size="40" text-rendering="geometricPrecision" text-anchor="middle" dominant-baseline="text-before-edge" style="font-weight: bold; pointer-events: none; white-space: pre; font-family: Arial;">${filteredCourses[courseIndex].id} - ${section.id}</text>`;
                 lecture += `<text x="${(x + period * genislik) + ((duration * genislik) / 2)}" y="${(y + gun * yukseklik) + 232.25}" font-size="30" text-rendering="geometricPrecision" text-anchor="middle" dominant-baseline="text-after-edge" style="pointer-events: none; white-space: pre; font-weight: bold; font-family: Arial;">${schedule.classroom}</text>`;
@@ -137,6 +144,30 @@ app.post('/api/schedule', (req, res) => {
     res.send(svgs);
 });
 
+// Çakışmaları bulan fonksiyon
+function findConflicts(combination) {
+    let scheduleMap = {};
+    let conflicts = [];
+    for (let section of combination) {
+        for (let schedule of section.schedules) {
+            const gun = schedule.day;
+            const period = parseInt(schedule.period);
+            const duration = parseInt(schedule.duration);
+            if (!scheduleMap[gun]) {
+                scheduleMap[gun] = [];
+            }
+            const start = period;
+            const end = period + duration - 1;
+            for (let existing of scheduleMap[gun]) {
+                if (Math.max(start, existing.start) <= Math.min(end, existing.end)) {
+                    conflicts.push({ section, schedule });
+                }
+            }
+            scheduleMap[gun].push({ start, end });
+        }
+    }
+    return conflicts;
+}
 
 function cartesianProduct(arr) {
     return arr.reduce((acc, val) => {
