@@ -1,1 +1,128 @@
-Hello World!
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atılım Üniversitesi Ders Programı</title>
+</head>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f4f4f4;
+    }
+
+    h1 {
+        color: #333;
+    }
+
+    form {
+        background: #fff;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+    }
+
+    select {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    button {
+        background-color: #007bff;
+        color: white;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background-color: #0056b3;
+    }
+
+    #svgOutput {
+        margin-top: 20px;
+    }
+</style>
+<body>
+    <h1>Ders Programı Oluştur</h1>
+    <form id="scheduleForm">
+        <label for="department">Departman Seç:</label>
+        <select id="department" name="department">
+            <!-- Departman seçenekleri buraya yüklenecek -->
+        </select>
+
+        <label for="courses">Dersler:</label>
+        <select id="courses" name="courses" multiple>
+            <!-- Ders seçenekleri buraya yüklenecek -->
+        </select>
+
+        <button type="submit">Ders Programı Oluştur</button>
+    </form>
+
+    <div id="svgOutput"></div>
+
+    <script>
+        // Departman ve dersleri çekme ve forma ekleme
+        async function loadDepartments() {
+            const response = await fetch('/api/departments');
+            const departments = await response.json();
+            const departmentSelect = document.getElementById('department');
+
+            for (const [key, value] of Object.entries(departments)) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = value;
+                departmentSelect.appendChild(option);
+            }
+
+        }
+
+        async function loadCourses() {
+            const response = await fetch('/api/courses');
+            const courses = await response.json();
+            const coursesSelect = document.getElementById('courses');
+
+            courses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = course.id + " - " + course.name;
+                coursesSelect.appendChild(option);
+            });
+        }
+
+        // Formun gönderilmesi ve SVG gösterilmesi
+        document.getElementById('scheduleForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const department = document.getElementById('department').value;
+            const courses = Array.from(document.getElementById('courses').selectedOptions).map(option => option.value);
+
+            const response = await fetch('/api/schedule', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ department, courses }),
+            });
+
+            const svgData = await response.text();
+            document.getElementById('svgOutput').innerHTML = svgData;
+        });
+
+        loadDepartments();
+        loadCourses();
+    </script>
+</body>
+
+</html>

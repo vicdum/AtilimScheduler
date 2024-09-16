@@ -55,15 +55,45 @@ async function getDepartmentData() {
 }
 
 const app = express();
+app.use(express.json());
 const port = 3000;
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get('/api/departments', (req, res) => {
+    const departmentData = fs.readFileSync(path.join(__dirname, 'tmp', 'departmentData.json'), 'utf-8');
+    res.json(JSON.parse(departmentData));
+});
+
+app.get('/api/courses', (req, res) => {
+    const courseData = fs.readFileSync(path.join(__dirname, 'tmp', 'courseData.json'), 'utf-8');
+    res.json(JSON.parse(courseData));
+});
+
+app.post('/api/schedule', (req, res) => {
+    const { department, courses } = req.body;
+    const courseData = fs.readFileSync(path.join(__dirname, 'tmp', 'courseData.json'), 'utf-8');
+    const coursesJson = JSON.parse(courseData);
+    const selectedCourses = coursesJson.filter(course => courses.includes(course.id));
+    const filteredCourses = selectedCourses.map(course => {
+        const filteredSections = course.sections.filter(section => {
+            return section.schedules.some(schedule => {
+                const departments = schedule.department.split(', ');
+                return departments.includes(department);
+            });
+        });
+        return { ...course, sections: filteredSections };
+    }).filter(course => course.sections.length > 0);
+
+    console.log(`Filtered Results: ${selectedCourses.length} courses`);
+    console.log(filteredCourses);
+
+    let svg = "";
+    res.send(svg);
+});
+
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
 });
-
-getCourseData();
-getDepartmentData();
