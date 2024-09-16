@@ -54,6 +54,11 @@ async function getDepartmentData() {
     }
 }
 
+setInterval(() => {
+    getCourseData();
+    getDepartmentData();
+}, 15 * 60 * 1000);
+
 const app = express();
 app.use(express.json());
 const port = 3000;
@@ -73,29 +78,41 @@ app.get('/api/courses', (req, res) => {
 });
 
 app.post('/api/schedule', (req, res) => {
-    const { department, courses } = req.body;
+    const { department, courses, showConflicts, filterByDepartment } = req.body;
     const courseData = fs.readFileSync(path.join(__dirname, 'tmp', 'courseData.json'), 'utf-8');
     const coursesJson = JSON.parse(courseData);
     const selectedCourses = coursesJson.filter(course => courses.includes(course.id));
-    const filteredCourses = selectedCourses.map(course => {
+
+    let filteredCourses = selectedCourses.map(course => {
         const filteredSections = course.sections.filter(section => {
             return section.schedules.some(schedule => {
-                const departments = schedule.department.split(', ');
-                return departments.includes(department);
+                if (filterByDepartment) {
+                    const departments = schedule.department.split(', ');
+                    return departments.includes(department);
+                }
+                return true;
             });
         });
         return { ...course, sections: filteredSections };
     }).filter(course => course.sections.length > 0);
 
-    // console.log(`Filtered Results: ${selectedCourses.length} courses`);
-    // console.log(filteredCourses);
+    let courseSections = filteredCourses.map(course => course.sections);
+    let combinations = cartesianProduct(courseSections);
 
-    let svg = fs.readFileSync(path.join(__dirname, 'template.svg'), 'utf-8');
+    let templateSvg = fs.readFileSync(path.join(__dirname, 'template.svg'), 'utf-8');
 
-    filteredCourses.forEach(course => {
-        course.sections.forEach(section => {
+    let validCombinations = combinations;
+    if (!showConflicts) {
+        validCombinations = combinations.filter(isValidCombination);
+    }
+
+    svgs = [];
+
+    validCombinations.forEach((combination, index) => {
+        let svg = templateSvg;
+
+        combination.forEach((section, courseIndex) => {
             section.schedules.forEach(schedule => {
-
                 const gunler = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
                 const gun = gunler.indexOf(schedule.day);
                 const period = parseInt(schedule.period) - 1;
@@ -106,19 +123,49 @@ app.post('/api/schedule', (req, res) => {
                 let x = 345;
                 let y = 420;
 
-                // add lecture to svg file
-                let lecture = `<rect x="${x + period * genislik}" y="${y + gun * yukseklik}" width="${duration * genislik}" height="${yukseklik}" fill="#FFC0CB" />`;
-                lecture += `<text x="${(x + period * genislik) + ((duration * genislik) / 2)}" y="${(y + gun * yukseklik)+100}" font-size="40" text-rendering="geometricPrecision" text-anchor="middle" dominant-baseline="text-before-edge" style="font-weight: bold; pointer-events: none; white-space: pre; font-family: Arial;">${course.id}</text>`;
+                const colors = ['#FFC0CB', '#ADD8E6', '#90EE90', '#FFB6C1', '#FFD700', '#FFA07A', '#20B2AA', '#87CEFA', '#778899', '#B0C4DE'];
+                const color = colors[courseIndex % colors.length];
+                let lecture = `<rect x="${x + period * genislik}" y="${y + gun * yukseklik}" width="${duration * genislik}" height="${yukseklik}" fill="${color}" stroke-width="2"/>`;
+                lecture += `<text x="${(x + period * genislik) + ((duration * genislik) / 2)}" y="${(y + gun * yukseklik) + 100}" font-size="40" text-rendering="geometricPrecision" text-anchor="middle" dominant-baseline="text-before-edge" style="font-weight: bold; pointer-events: none; white-space: pre; font-family: Arial;">${filteredCourses[courseIndex].id} - ${section.id}</text>`;
                 lecture += `<text x="${(x + period * genislik) + ((duration * genislik) / 2)}" y="${(y + gun * yukseklik) + 232.25}" font-size="30" text-rendering="geometricPrecision" text-anchor="middle" dominant-baseline="text-after-edge" style="pointer-events: none; white-space: pre; font-weight: bold; font-family: Arial;">${schedule.classroom}</text>`;
                 svg = svg.replace('</g></svg>', lecture + '</g></svg>');
-
-                console.log(`Lecture: ${course.code} - ${section.code} - ${schedule.day} - ${schedule.period} - ${schedule.duration}`);
             });
         });
+        svgs.push(svg);
     });
 
-    res.send(svg);
+    res.send(svgs);
 });
+
+
+function cartesianProduct(arr) {
+    return arr.reduce((acc, val) => {
+        return acc.flatMap(d => val.map(v => [...d, v]));
+    }, [[]]);
+}
+
+function isValidCombination(combination) {
+    let scheduleMap = {};
+    for (let section of combination) {
+        for (let schedule of section.schedules) {
+            const gun = schedule.day;
+            const period = parseInt(schedule.period);
+            const duration = parseInt(schedule.duration);
+            if (!scheduleMap[gun]) {
+                scheduleMap[gun] = [];
+            }
+            const start = period;
+            const end = period + duration - 1;
+            for (let existing of scheduleMap[gun]) {
+                if (Math.max(start, existing.start) <= Math.min(end, existing.end)) {
+                    return false;
+                }
+            }
+            scheduleMap[gun].push({ start, end });
+        }
+    }
+    return true;
+}
 
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);

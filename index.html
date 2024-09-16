@@ -5,7 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Atılım Üniversitesi Ders Programı</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
 </head>
+
 <style>
     body {
         font-family: Arial, sans-serif;
@@ -25,7 +27,7 @@
     }
 
     label {
-        display: block;
+        display: inline-block;
         margin-bottom: 8px;
         font-weight: bold;
     }
@@ -51,82 +53,267 @@
         background-color: #0056b3;
     }
 
-    #svgOutput {
+    #svgContainer {
+        position: relative;
         margin-top: 20px;
-    }
-
-    #svgOutput {
         background: #fff;
         padding: 20px;
         border-radius: 5px;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         overflow: auto;
+        text-align: center;
     }
+
+    .arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 2rem;
+        background: darkgrey;
+        border: none;
+        cursor: pointer;
+    }
+
+    .arrow.left {
+        left: 10px;
+    }
+
+    .arrow.right {
+        right: 10px;
+    }
+
+    .arrow:hover {
+        color: #007bff;
+    }
+
+    #svgCounter {
+        margin-top: 10px;
+        font-weight: bold;
+        color: #555;
+    }
+
+    #noSvgs {
+        text-align: center;
+        color: red;
+    }
+    #preloader {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #007bff;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 </style>
+
 <body>
+    <div id="preloader" style="display: none;">
+        <div class="loader"></div>
+    </div>
+
     <h1>Ders Programı Oluştur</h1>
+
     <form id="scheduleForm">
         <label for="department">Departman Seç:</label>
-        <select id="department" name="department">
-            <!-- Departman seçenekleri buraya yüklenecek -->
-        </select>
-
+        <select id="department" name="department"></select>
+    
         <label for="courses">Dersler:</label>
-        <select id="courses" name="courses" multiple>
-            <!-- Ders seçenekleri buraya yüklenecek -->
-        </select>
-
+        <select id="courses" name="courses" multiple></select>
+    
+        <div>
+            <input type="checkbox" id="showConflicts" name="showConflicts">
+            <label for="showConflicts">Çakışan Dersleri Göster</label>
+        </div>
+    
+        <div>
+            <input type="checkbox" id="filterByDepartment" name="filterByDepartment" checked>
+            <label for="filterByDepartment">Departmana Göre Filtrele</label>
+        </div>
+    
         <button type="submit">Ders Programı Oluştur</button>
     </form>
 
-    <div id="svgOutput"></div>
+    <div id="svgContainer">
+        <button class="arrow left" id="prevSvg" style="display:none;">&#9664;</button>
+        <div id="svgOutput"></div>
+        <button class="arrow right" id="nextSvg" style="display:none;">&#9654;</button>
+    </div>
+
+    <!-- SVG sayaç alanı -->
+    <div id="svgCounter" style="display:none;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 
     <script>
-        // Departman ve dersleri çekme ve forma ekleme
-        async function loadDepartments() {
+        const coursesSelect = new Choices('#courses', {
+            removeItemButton: true,
+            placeholderValue: 'Dersleri seçin',
+            searchPlaceholderValue: 'Dersleri arayın',
+        });
+
+        let svgs = [];
+        let currentIndex = 0;
+
+        function updateSvgCounter() {
+            if (svgs.length > 0) {
+                document.getElementById('svgCounter').textContent = `Program ${currentIndex + 1} / ${svgs.length}`;
+                document.getElementById('svgCounter').style.display = 'block';
+            } else {
+                document.getElementById('svgCounter').style.display = 'none';
+            }
+        }
+
+        function displaySvg(index) {
+            if (svgs.length === 0) {
+                document.getElementById('svgOutput').innerHTML = '<p id="noSvgs">Gösterilecek ders programı bulunamadı.</p>';
+                document.getElementById('prevSvg').style.display = 'none';
+                document.getElementById('nextSvg').style.display = 'none';
+                document.getElementById('svgCounter').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('svgOutput').innerHTML = svgs[index];
+
+            // Sol ok düğmesini göster/gizle
+            if (index === 0) {
+                document.getElementById('prevSvg').style.display = 'none';
+            } else {
+                document.getElementById('prevSvg').style.display = 'block';
+            }
+
+            // Sağ ok düğmesini göster/gizle
+            if (index === svgs.length - 1) {
+                document.getElementById('nextSvg').style.display = 'none';
+            } else {
+                document.getElementById('nextSvg').style.display = 'block';
+            }
+
+            // SVG sayacını güncelle
+            updateSvgCounter();
+        }
+
+        document.getElementById('prevSvg').addEventListener('click', function () {
+            if (currentIndex > 0) {
+                currentIndex--;
+                displaySvg(currentIndex);
+            }
+        });
+
+        document.getElementById('nextSvg').addEventListener('click', function () {
+            if (currentIndex < svgs.length - 1) {
+                currentIndex++;
+                displaySvg(currentIndex);
+            }
+        });
+
+    async function loadDepartments() {
+        try {
+            document.getElementById('preloader').style.display = 'flex';
             const response = await fetch('/api/departments');
             const departments = await response.json();
             const departmentSelect = document.getElementById('department');
 
-            for (const [key, value] of Object.entries(departments)) {
+            // Convert the departments object to an array of entries and sort it by department names
+            const sortedDepartments = Object.entries(departments).sort((a, b) => a[1].localeCompare(b[1]));
+
+            // Append the sorted options to the departmentSelect element
+            sortedDepartments.forEach(([key, value]) => {
                 const option = document.createElement('option');
                 option.value = key;
                 option.textContent = value;
                 departmentSelect.appendChild(option);
-            }
-
+            });
+        } catch (error) {
+            console.error("Departmanlar yüklenirken bir hata oluştu:", error);
+        } finally {
+            document.getElementById('preloader').style.display = 'none';
         }
+    }
 
         async function loadCourses() {
-            const response = await fetch('/api/courses');
-            const courses = await response.json();
-            const coursesSelect = document.getElementById('courses');
+            try {
+                document.getElementById('preloader').style.display = 'flex';
+                const response = await fetch('/api/courses');
+                const courses = await response.json();
 
-            courses.forEach(course => {
-                const option = document.createElement('option');
-                option.value = course.id;
-                option.textContent = course.id + " - " + course.name;
-                coursesSelect.appendChild(option);
-            });
+                courses.forEach(course => {
+                    coursesSelect.setChoices([{
+                        value: course.id,
+                        label: course.id + " - " + (course.name.split("01 - ")[1] || course.name)
+                    }], 'value', 'label', false);
+                });
+            } catch (error) {
+                console.error("Dersler yüklenirken bir hata oluştu:", error);
+            } finally {
+                document.getElementById('preloader').style.display = 'none';
+            }
         }
 
-        // Formun gönderilmesi ve SVG gösterilmesi
         document.getElementById('scheduleForm').addEventListener('submit', async function (event) {
-            event.preventDefault();
-            const department = document.getElementById('department').value;
-            const courses = Array.from(document.getElementById('courses').selectedOptions).map(option => option.value);
+                event.preventDefault();
+                document.getElementById('preloader').style.display = 'flex';
+                const department = document.getElementById('department').value;
+                const courses = Array.from(document.getElementById('courses').selectedOptions).map(option => option.value);
+                const showConflicts = document.getElementById('showConflicts').checked;
+                const filterByDepartment = document.getElementById('filterByDepartment').checked;
 
-            const response = await fetch('/api/schedule', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ department, courses }),
+                try {
+                    const response = await fetch('/api/schedule', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ department, courses, showConflicts, filterByDepartment }),
+                    });
+
+                    svgs = await response.json();
+                    currentIndex = 0;
+                    displaySvg(currentIndex);
+                } catch (error) {
+                    console.error("Program oluşturulurken bir hata oluştu:", error);
+                } finally {
+                    document.getElementById('preloader').style.display = 'none';
+                }
+
+                // Add download button
+                const downloadButton = document.createElement('button');
+                downloadButton.textContent = 'SVG İndir';
+                downloadButton.style.marginTop = '20px';
+                downloadButton.addEventListener('click', function () {
+                    if (svgs.length > 0) {
+                        const svgBlob = new Blob([svgs[currentIndex]], { type: 'image/svg+xml' });
+                        const url = URL.createObjectURL(svgBlob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `schedule_${currentIndex + 1}.svg`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }
+                });
+
+                document.getElementById('svgContainer').appendChild(downloadButton);
             });
-
-            const svgData = await response.text();
-            document.getElementById('svgOutput').innerHTML = svgData;
-        });
 
         loadDepartments();
         loadCourses();
