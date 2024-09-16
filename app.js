@@ -54,6 +54,9 @@ async function getDepartmentData() {
     }
 }
 
+getCourseData();
+getDepartmentData();
+
 setInterval(() => {
     getCourseData();
     getDepartmentData();
