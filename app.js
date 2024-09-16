@@ -54,6 +54,10 @@ async function getDepartmentData() {
     }
 }
 
+if (!fs.existsSync(path.join(__dirname, 'tmp'))) {
+    fs.mkdirSync(path.join(__dirname, 'tmp'));
+}
+
 getCourseData();
 getDepartmentData();
 
